@@ -1,0 +1,4 @@
+# Assinatura eletrônica (aba "Assinatura eletrônica" só aparece com isto instalado)
+docusign-esign
+# Servidor de produção em Linux (ver app/web/wsgi.py)
+gunicorn

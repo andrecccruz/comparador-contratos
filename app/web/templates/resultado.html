@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block titulo %}{{ execucao.fornecedor }} · {{ ident.nome_produto }}{% endblock %}
+{% set rotulos_status = {'pendente':'Pendente','em_revisao':'Em revisão','aprovado':'Aprovado','devolvido':'Devolvido'} %}
+{% block conteudo %}
+<div class="res-topo">
+  <a class="voltar" href="{{ url_for('pagina_comparar', dep=departamento) }}" title="Voltar para Comparar" aria-label="Voltar para Comparar">←</a>
+  <div class="res-titulo">
+    <h1 title="{{ execucao.fornecedor }}">{{ execucao.fornecedor }}</h1>
+    <div class="dica" title="{{ execucao.arquivo }}">{{ execucao.arquivo }} · {{ execucao.criado_em }}{% if execucao.rodadas_total and execucao.rodadas_total > 1 %} · rodada v{{ execucao.rodada }}{% endif %}</div>
+  </div>
+  {% if execucao.selo_risco %}<span class="selo risco-{{ 'Medio' if execucao.selo_risco == 'Médio' else execucao.selo_risco }}" title="Risco geral">{{ execucao.selo_risco }} · {{ execucao.risco_geral }}</span>{% endif %}
+  <span class="res-espaco"></span>
+
+  {% if ia_recursos.analise_completa or ia_recursos.chat %}
+  <button type="button" class="botao-ia" id="b-abrir-ia" aria-expanded="false" aria-controls="painel-ia">✦ Assistente IA</button>
+  {% endif %}
+
+  <div class="suspenso">
+    <button type="button" class="secundario" data-suspenso="pop-revisao" aria-expanded="false">Revisão: <b id="rotulo-status">{{ rotulos_status[execucao.status_revisao or 'pendente'] }}</b> ▾</button>
+    <div class="pop" id="pop-revisao" hidden>
+      <div class="campo"><label for="ar-status">Status da revisão</label>
+        <select id="ar-status">{% for s in status_revisao %}<option value="{{ s }}" {{ 'selected' if (execucao.status_revisao or 'pendente') == s }}>{{ rotulos_status[s] }}</option>{% endfor %}</select></div>
+      <div class="campo"><label for="ar-resp">Responsável</label>
+        <input type="text" id="ar-resp" maxlength="120" value="{{ execucao.responsavel or '' }}"></div>
+      <button type="button" class="pequeno" id="b-salvar-status">Salvar</button>
+    </div>
+  </div>
+
+  <div class="suspenso">
+    <button type="button" class="secundario" data-suspenso="pop-acoes" aria-expanded="false">Ações ▾</button>
+    <div class="pop pop-menu" id="pop-acoes" hidden role="menu">
+      <button type="button" role="menuitem" onclick="gerarRedline('{{ execucao.id }}')">Contraproposta (.docx)<small>controle de alterações: rejeitadas voltam ao modelo</small></button>
+      <button type="button" role="menuitem" onclick="gerarParecer('{{ execucao.id }}')">Parecer (PDF/DOCX)<small>resumo formal da revisão</small></button>
+      {% if execucao.rodadas_total and execucao.rodadas_total > 1 %}
+      <a role="menuitem" href="{{ url_for('pagina_rodadas', execucao_id=execucao.id) }}">Rodadas (v{{ execucao.rodada }} de {{ execucao.rodadas_total }})<small>comparar com a devolução anterior</small></a>
+      {% endif %}
+      {% if execucao.docusign_envelope_id %}
+      <span class="pop-nota">Assinatura: {{ execucao.docusign_status }}</span>
+      {% elif docusign_ativo %}
+      <button type="button" role="menuitem" onclick="abrirAssinatura()">Enviar para assinatura<small>DocuSign do departamento</small></button>
+      {% else %}
+      <span class="pop-nota" title="Configure em Ajustes → Assinatura eletrônica">Assinatura eletrônica não configurada</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="suspenso">
+    <button type="button" data-suspenso="pop-baixar" aria-expanded="false">Baixar ▾</button>
+    <div class="pop pop-menu direita" id="pop-baixar" hidden role="menu">
+      {% for rotulo, url in downloads %}<a role="menuitem" href="{{ url }}">{{ rotulo }}</a>{% endfor %}
+    </div>
+  </div>
+</div>
+<div id="ar-msg" class="res-msg" role="status" aria-live="polite"></div>
+
+<div class="res-corpo" id="res-corpo">
+  {% if ia_recursos.analise_completa or ia_recursos.chat %}
+  <aside class="painel-ia" id="painel-ia" hidden aria-label="Assistente de IA">
+    <div class="pia-topo">
+      <strong>✦ Assistente IA</strong>
+      <button type="button" class="fechar" id="b-fechar-ia" aria-label="Fechar assistente" title="Fechar">&times;</button>
+    </div>
+    <div class="pia-abas" role="tablist">
+      {% if ia_recursos.analise_completa %}<button type="button" role="tab" data-aba-ia="analise" aria-selected="true">Análise</button>{% endif %}
+      {% if ia_recursos.chat %}<button type="button" role="tab" data-aba-ia="chat" aria-selected="{{ 'false' if ia_recursos.analise_completa else 'true' }}">Perguntar</button>{% endif %}
+    </div>
+
+    {% if ia_recursos.analise_completa %}
+    <section class="pia-secao" data-secao-ia="analise">
+      <div id="ia-analise-conteudo">
+        <p class="dica">A IA só analisa quando você pedir — nada é enviado ao abrir esta página.</p>
+      </div>
+      <button type="button" id="b-analisar" class="pequeno">{{ 'Refazer análise' if tem_analise_ia else 'Analisar contrato com IA' }}</button>
+      <p class="dica pia-nota">Envia só os trechos críticos{{ ' (anonimizados)' if ia_anonimizar }}. Explicações e sugestões aparecem nos cartões com a marca “IA”.</p>
+    </section>
+    {% endif %}
+
+    {% if ia_recursos.chat %}
+    <section class="pia-secao" data-secao-ia="chat" {{ 'hidden' if ia_recursos.analise_completa }}>
+      <div class="chat-log" id="chat-log" aria-live="polite"></div>
+      <details class="chat-exemplos" id="chat-exemplos">
+        <summary>Exemplos de perguntas</summary>
+        <div class="chat-sugestoes" id="chat-sugestoes"></div>
+      </details>
+      <form class="chat-form" id="chat-form" autocomplete="off">
+        <label for="chat-pergunta" class="rotulo-oculto">Pergunta sobre o contrato</label>
+        <textarea id="chat-pergunta" rows="2" maxlength="500" placeholder="Pergunte sobre este contrato ou um termo jurídico…"></textarea>
+        <div class="chat-rodape">
+          <span class="dica" id="chat-contador"></span>
+          <button type="button" class="secundario pequeno" id="b-limpar-chat" title="Limpar conversa">Limpar</button>
+          <button type="submit" class="pequeno" id="b-enviar-chat">Enviar</button>
+        </div>
+      </form>
+      <p class="dica pia-nota">Perguntas fora do contrato ou que tentem mudar as regras são barradas antes de chegar à IA (sem custo).</p>
+    </section>
+    {% endif %}
+  </aside>
+  {% endif %}
+  <iframe class="res-frame" id="res-frame" title="Comparativo" src="{{ url_for('visualizar', execucao_id=execucao.id, embutido=1) }}"
+          sandbox="allow-scripts allow-same-origin allow-downloads allow-modals allow-popups"></iframe>
+</div>
+
+{% if docusign_ativo and not execucao.docusign_envelope_id %}
+<div class="visor" id="modal-assinatura" onclick="if(event.target===this)fecharAssinatura()">
+  <div class="visor-caixa" style="height:auto;max-width:560px">
+    <div class="visor-topo">
+      <strong>Enviar para assinatura — {{ execucao.arquivo }}</strong>
+      <button class="fechar" onclick="fecharAssinatura()" aria-label="Fechar">&times;</button>
+    </div>
+    <div style="padding:18px 22px">
+      <p class="legenda" style="margin-top:0">Adicione quem vai assinar. Mesma ordem = em paralelo; numere para exigir sequência.</p>
+      <div id="lista-signatarios"></div>
+      <button class="secundario" type="button" onclick="adicionarSignatario()" style="margin-top:6px">+ Adicionar signatário</button>
+      <div class="acoes" style="margin-top:16px">
+        <button type="button" id="btn-enviar-assinatura" onclick="enviarAssinatura()">Enviar</button>
+        <span id="ass-aviso" style="color:var(--erro);font-size:13px"></span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>window.RESULTADO_ID = {{ execucao.id | tojson }};</script>
+<script src="{{ url_for('static', filename='resultado.js') }}"></script>
+{% endblock %}

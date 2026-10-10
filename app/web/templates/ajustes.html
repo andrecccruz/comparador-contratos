@@ -1,0 +1,452 @@
+{% extends "base.html" %}
+{% block titulo %}Ajustes · {{ ident.nome_produto }}{% endblock %}
+{% block conteudo %}
+<h1>Ajustes</h1>
+<p class="legenda">Alterações são validadas, gravadas com backup automático da versão anterior e aplicadas na hora — sem reiniciar o servidor.</p>
+
+<nav class="abas" role="tablist" aria-label="Seções de ajustes">
+  {% for chave, rotulo in abas %}
+  <a role="tab" href="{{ url_for('pagina_ajustes', aba=chave, dep=departamento) }}"
+     aria-selected="{{ 'true' if aba == chave else 'false' }}" class="{{ 'ativa' if aba == chave }}">{{ rotulo }}</a>
+  {% endfor %}
+</nav>
+<div class="aviso-ajustes" id="aviso-ajustes" role="status" aria-live="polite" hidden></div>
+
+{# ======================================================== IDENTIDADE #}
+{% if aba == 'identidade' %}
+<div class="cartao cartao-identidade">
+  <div class="cab-cartao">
+    <h2>Identidade do sistema e dos relatórios</h2>
+    <label class="troca-tema" for="troca-tema">
+      <input type="checkbox" id="troca-tema" onchange="alternarTema()">
+      Modo escuro <span class="etiqueta" id="rotulo-tema">Claro</span>
+    </label>
+  </div>
+  <div class="perfil-fixo linha" style="gap:12px;align-items:center;margin:4px 0 12px">
+    <img src="{{ url_for('logo_identidade', v=versao_logo) }}" alt="" width="40" height="40" style="border-radius:10px">
+    <div><b>{{ cfg.identidade.organizacao_contratante }}</b><br><small class="dica">Identidade visual usada no sistema e nos relatórios.</small></div>
+  </div>
+
+  <details class="personalizar">
+    <summary>Personalizar <span class="dica">(nome, cor, logo, rodapé)</span></summary>
+    <form data-secao="identidade" novalidate class="form-identidade">
+      <div class="grade-3">
+        <div class="campo"><label for="i-nome">Nome do produto</label>
+          <input type="text" id="i-nome" name="nome_produto" maxlength="80" value="{{ cfg.identidade.nome_produto }}" required>
+          <small class="erro" data-erro="nome_produto"></small></div>
+        <div class="campo"><label for="i-curto">Nome curto (barra lateral)</label>
+          <input type="text" id="i-curto" name="nome_curto" maxlength="30" value="{{ cfg.identidade.nome_curto }}" required>
+          <small class="erro" data-erro="nome_curto"></small></div>
+        <div class="campo"><label for="i-org">Organização contratante</label>
+          <input type="text" id="i-org" name="organizacao_contratante" maxlength="80" value="{{ cfg.identidade.organizacao_contratante }}" required title="Aparece nos textos e nunca é detectada como fornecedor.">
+          <small class="erro" data-erro="organizacao_contratante"></small></div>
+        <div class="campo"><label for="i-cor">Cor primária</label>
+          <div class="linha" style="gap:8px;align-items:center;flex-wrap:nowrap">
+            <input type="color" id="i-cor-picker" value="{{ cfg.identidade.cor_primaria }}" aria-label="Escolher cor" style="width:46px;height:36px;padding:2px">
+            <input type="text" id="i-cor" name="cor_primaria" value="{{ cfg.identidade.cor_primaria }}" pattern="#[0-9A-Fa-f]{6}" style="width:110px">
+          </div>
+          <small class="erro" data-erro="cor_primaria"></small></div>
+        <div class="campo" style="grid-column:span 2"><label for="i-rodape">Rodapé dos relatórios</label>
+          <input type="text" id="i-rodape" name="rodape_relatorio" maxlength="300" value="{{ cfg.identidade.rodape_relatorio }}" placeholder="ex.: Uso interno">
+          <small class="erro" data-erro="rodape_relatorio"></small></div>
+      </div>
+      <div class="linha previa-linha">
+        <div class="previa" id="previa-identidade">
+          <div class="previa-lateral"><img src="{{ url_for('logo_identidade', v=versao_logo) }}" alt="" width="28" height="28"><span id="previa-curto">{{ cfg.identidade.nome_curto }}</span></div>
+          <div class="previa-corpo">
+            <div class="previa-produto" id="previa-produto">{{ cfg.identidade.nome_produto }}</div>
+            <div class="linha" style="gap:8px;margin-top:6px">
+              <button type="button" class="previa-botao pequeno">Botão</button>
+              <button type="button" class="previa-sec pequeno">Secundário</button>
+              <span class="previa-selo">selo</span>
+            </div>
+          </div>
+        </div>
+        <ul class="avisos-contraste" id="avisos-contraste">
+          {% for a in avisos_contraste %}<li>{{ a }}</li>{% endfor %}
+        </ul>
+      </div>
+      <div class="acoes"><button type="submit">Salvar personalização</button>
+        <button type="button" class="secundario" data-restaurar-perfil="padrao">Restaurar identidade padrão</button>
+      </div>
+    </form>
+    <div class="linha logo-linha">
+      <img src="{{ url_for('logo_identidade', v=versao_logo) }}" alt="Logo atual" width="40" height="40" style="border-radius:10px">
+      <form data-upload="/api/ajustes/identidade/logo" class="linha" style="gap:8px;align-items:center" enctype="multipart/form-data">
+        <input type="file" name="logo" accept=".svg,.png,image/svg+xml,image/png" aria-label="Arquivo do logo">
+        <button type="submit" class="secundario pequeno">Enviar logo</button>
+        <small class="erro" data-erro="logo"></small>
+      </form>
+      {% if logo_proprio %}
+      <form data-secao="identidade" data-extra='{"remover_logo":true}'>
+        {% for k in ['nome_produto','nome_curto','organizacao_contratante','cor_primaria','rodape_relatorio'] %}<input type="hidden" name="{{ k }}" value="{{ cfg.identidade[k] }}">{% endfor %}
+        <button type="submit" class="secundario pequeno">Usar monograma</button>
+      </form>
+      {% endif %}
+      <small class="dica">.svg (sem scripts) ou .png quadrado, até 512 KB.</small>
+    </div>
+  </details>
+</div>
+{% endif %}
+
+{# ======================================================== DEPARTAMENTOS #}
+{% if aba == 'departamentos' %}
+<form class="cartao" data-secao="departamentos" data-lista="departamentos" novalidate{% if not departamentos %} data-apos-salvar="{{ url_for('pagina_modelos') }}"{% endif %}>
+  <div class="cab-cartao">
+    <h2>Departamentos</h2>
+    <button type="button" class="secundario pequeno" data-adicionar="modelo-linha-dep" data-destino="linhas-dep">+ Novo departamento</button>
+  </div>
+  {% if not departamentos %}
+  <div class="alerta-info" style="margin-bottom:12px">
+    <b>Primeiro uso — cadastre um departamento para começar.</b>
+    <ol style="margin:6px 0 0 18px;padding:0">
+      <li>Clique em <b>+ Novo departamento</b>, informe um código (ex.: <code>JUR</code>) e o nome (ex.: Jurídico) e clique em <b>Salvar departamentos</b>.</li>
+      <li>Em <b>Modelos</b>, envie o contrato-modelo padrão do departamento (.docx, .pdf ou .txt).</li>
+      <li>Em <b>Comparar</b>, anexe a versão devolvida pela outra parte.</li>
+    </ol>
+  </div>
+  {% endif %}
+  <p class="dica" style="margin-top:-4px">Inclua, edite ou exclua e clique em <b>Salvar</b>. Departamento sem histórico nem modelos é apagado de vez; com histórico, vai para <b>Excluídos</b> (some dos seletores, o histórico continua acessível e dá para restaurar).</p>
+  <div class="tabela-rolavel">
+  <table class="tabela-edicao">
+    <thead><tr><th>Código</th><th>Nome</th><th>Ativo</th><th>Cor</th><th>Ícone</th><th>Modelo padrão</th><th></th></tr></thead>
+    <tbody id="linhas-dep">
+      {% for d in departamentos %}
+      <tr data-item>
+        <td><input type="text" data-campo="codigo" value="{{ d.codigo }}" readonly aria-label="Código" style="width:80px"></td>
+        <td><input type="text" data-campo="nome" value="{{ d.nome }}" maxlength="80" aria-label="Nome"></td>
+        <td><input type="checkbox" data-campo="ativo" {{ 'checked' if d.ativo }} aria-label="Ativo"></td>
+        <td><input type="color" data-campo="cor" value="{{ d.cor or '#8b929b' }}" aria-label="Cor"></td>
+        <td><select data-campo="icone" aria-label="Ícone">{% for ic in icones %}<option value="{{ ic }}" {{ 'selected' if d.icone == ic }}>{{ ic }}</option>{% endfor %}</select></td>
+        <td><select data-campo="modelo_padrao" aria-label="Modelo padrão"><option value="">(nenhum)</option>
+          {% for m in modelos_por_dep.get(d.codigo, []) %}<option value="{{ m }}" {{ 'selected' if d.modelo_padrao == m }}>{{ m }}</option>{% endfor %}</select></td>
+        <td><button type="button" class="secundario pequeno perigo" data-remover data-confirmar="Excluir o departamento {{ d.codigo }}? Só vale depois de Salvar." aria-label="Excluir {{ d.nome }}" title="Excluir">Excluir</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <small class="erro" data-erro="departamentos"></small>
+  <template id="modelo-linha-dep">
+    <tr data-item>
+      <td><input type="text" data-campo="codigo" maxlength="6" placeholder="SUP" aria-label="Código" style="width:80px;text-transform:uppercase"></td>
+      <td><input type="text" data-campo="nome" maxlength="80" placeholder="Suprimentos" aria-label="Nome"></td>
+      <td><input type="checkbox" data-campo="ativo" checked aria-label="Ativo"></td>
+      <td><input type="color" data-campo="cor" value="#8b929b" aria-label="Cor"></td>
+      <td><select data-campo="icone" aria-label="Ícone">{% for ic in icones %}<option value="{{ ic }}">{{ ic }}</option>{% endfor %}</select></td>
+      <td><select data-campo="modelo_padrao" aria-label="Modelo padrão"><option value="">(envie em Modelos)</option></select></td>
+      <td><button type="button" class="secundario pequeno perigo" data-remover aria-label="Remover linha" title="Remover">Excluir</button></td>
+    </tr>
+  </template>
+  <div class="acoes">
+    <button type="submit">Salvar departamentos</button>
+    <span class="dica" id="dep-pendente" hidden>Alterações não salvas.</span>
+  </div>
+</form>
+{% if departamentos_excluidos %}
+<div class="cartao">
+  <h2>Excluídos</h2>
+  <p class="dica" style="margin-top:-4px">Têm histórico ou modelos, por isso foram arquivados em vez de apagados.</p>
+  <table>
+    <thead><tr><th>Código</th><th>Nome</th><th></th></tr></thead>
+    <tbody>
+      {% for d in departamentos_excluidos %}
+      <tr><td><code>{{ d.codigo }}</code></td><td>{{ d.nome }}</td>
+        <td style="text-align:right"><button type="button" class="secundario pequeno" data-restaurar-dep='{{ d | tojson }}'>Restaurar</button></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endif %}
+
+{# ======================================================== REGRAS DE ANALISE #}
+{% if aba == 'analise' %}
+<div class="cartao">
+  <div class="linha" style="align-items:flex-end">
+    <div class="campo curto"><label for="escopo">Escopo</label>
+      <select id="escopo" onchange="location.href='{{ url_for('pagina_ajustes', aba='analise', dep=departamento) }}&escopo='+this.value">
+        <option value="global">Global (todos)</option>
+        {% for d in departamentos %}<option value="{{ d.codigo }}" {{ 'selected' if escopo == d.codigo }}>{{ d.nome }}</option>{% endfor %}
+      </select></div>
+    <p class="dica" style="margin:0 0 8px">{% if escopo == 'global' %}Valem para todos os departamentos, salvo quando o departamento define o próprio valor.{% else %}Marque "herdar" para usar o valor global; desmarque para definir um valor só para este departamento.{% endif %}</p>
+  </div>
+</div>
+<form class="cartao" data-secao="analise" data-escopo="{{ escopo }}" novalidate>
+  <input type="hidden" name="escopo" value="{{ escopo }}">
+  {% macro herdar(chave) %}{% if escopo != 'global' %}<label class="herdar"><input type="checkbox" name="herdar" value="{{ chave }}" {{ 'checked' if origem[chave] != 'departamento' }}> herdar ({{ origem[chave] if origem[chave] != 'departamento' else 'definido aqui' }})</label>{% else %}<span class="origem">origem: {{ origem[chave] }}</span>{% endif %}{% endmacro %}
+  <div class="grade-2">
+    <div class="campo"><label for="a-termos">Termos críticos com peso <small>(um por linha: termo = peso de 0 a 50)</small></label>
+      <textarea id="a-termos" name="valores.termos_criticos" rows="10">{% if regras.termos_criticos is mapping %}{% for t, p in regras.termos_criticos.items() %}{{ t }} = {{ p|int }}
+{% endfor %}{% else %}{% for t in regras.termos_criticos %}{{ t }} = 10
+{% endfor %}{% endif %}</textarea>
+      {{ herdar('termos_criticos') }}<small class="erro" data-erro="termos_criticos"></small></div>
+    <div class="campo"><label for="a-nomes">Nomes que nunca são o fornecedor <small>(um por linha)</small></label>
+      <textarea id="a-nomes" name="valores.nomes_ignorar" rows="4">{{ regras.nomes_ignorar|join('\n') }}</textarea>
+      {{ herdar('nomes_ignorar') }}<small class="erro" data-erro="nomes_ignorar"></small>
+      <label for="a-regex" style="margin-top:12px">Campos a preencher — expressões regulares <small>(uma por linha)</small></label>
+      <textarea id="a-regex" name="valores.regex_placeholder" rows="3" style="font-family:Consolas,monospace;font-size:12px">{{ regras.regex_placeholder|join('\n') }}</textarea>
+      {{ herdar('regex_placeholder') }}<small class="erro" data-erro="regex_placeholder"></small>
+      <label for="a-cnpj" style="margin-top:12px">CNPJ da contratante <small>(opcional)</small></label>
+      <input type="text" id="a-cnpj" name="valores.cnpj_contratante" value="{{ regras.cnpj_contratante }}" placeholder="00.000.000/0000-00">
+      {{ herdar('cnpj_contratante') }}<small class="erro" data-erro="cnpj_contratante"></small>
+    </div>
+    <div class="campo"><label for="a-sim">Similaridade mínima de pareamento (0,30 a 0,95)</label>
+      <input type="number" id="a-sim" name="valores.similaridade_minima_par" min="0.3" max="0.95" step="0.01" value="{{ regras.similaridade_minima_par }}">
+      {{ herdar('similaridade_minima_par') }}<small class="erro" data-erro="similaridade_minima_par"></small></div>
+    <div class="campo"><label>Limiares de risco (0–100)</label>
+      <div class="linha" style="gap:10px">
+        <label class="inline">Médio a partir de <input type="number" name="valores.limiar_medio" min="1" max="99" value="{{ regras.limiares_risco.medio }}" style="width:80px"></label>
+        <label class="inline">Alto a partir de <input type="number" name="valores.limiar_alto" min="2" max="100" value="{{ regras.limiares_risco.alto }}" style="width:80px"></label>
+      </div>
+      {{ herdar('limiares_risco') }}<small class="erro" data-erro="limiar_medio"></small><small class="erro" data-erro="limiar_alto"></small></div>
+    <div class="campo"><label>Categorias ocultas por padrão no comparativo</label>
+      <div class="linha" style="gap:12px">{% for t in tipos %}<label class="inline"><input type="checkbox" name="valores.categorias_ocultas" value="{{ t }}" {{ 'checked' if t in regras.categorias_ocultas }}> {{ nomes_tipo[t] }}</label>{% endfor %}</div>
+      {{ herdar('categorias_ocultas') }}</div>
+    <div class="campo"><label class="inline"><input type="checkbox" name="valores.ignorar_diferencas_apenas_formatacao" value="1" {{ 'checked' if regras.ignorar_diferencas_apenas_formatacao }}> Ocultar diferenças só de formatação (espaço, pontuação, caixa)</label>
+      {{ herdar('ignorar_diferencas_apenas_formatacao') }}</div>
+  </div>
+  <div class="acoes"><button type="submit">Salvar regras {{ 'globais' if escopo == 'global' else 'de ' ~ escopo }}</button></div>
+</form>
+{% endif %}
+
+{# ======================================================== PLAYBOOK #}
+{% if aba == 'playbook' %}
+<form class="cartao" data-secao="playbook" data-lista="playbook" novalidate>
+  <h2>Playbook de aceitação</h2>
+  <p class="dica">O motor confere os valores extraídos da devolução (ficha do contrato) contra estas regras e marca <b>fora da política</b> no relatório. Deixe "departamentos" vazio para valer em todos.</p>
+  <div class="tabela-rolavel">
+  <table class="tabela-edicao">
+    <thead><tr><th>Ativa</th><th>Rótulo</th><th>Campo</th><th>Operador</th><th>Valor</th><th>Departamentos</th><th></th></tr></thead>
+    <tbody id="linhas-pb">
+      {% for r in cfg.playbook %}
+      <tr data-item>
+        <td><input type="checkbox" data-campo="ativo" {{ 'checked' if r.ativo }} aria-label="Ativa"><input type="hidden" data-campo="id" value="{{ r.id }}"></td>
+        <td><input type="text" data-campo="rotulo" value="{{ r.rotulo }}" maxlength="80" aria-label="Rótulo"></td>
+        <td><select data-campo="campo" aria-label="Campo">{% for c, rot in campos_playbook.items() %}<option value="{{ c }}" {{ 'selected' if r.campo == c }}>{{ rot }}</option>{% endfor %}</select></td>
+        <td><select data-campo="operador" aria-label="Operador">{% for o in operadores %}<option {{ 'selected' if r.operador == o }}>{{ o }}</option>{% endfor %}</select></td>
+        <td><input type="text" data-campo="valor" value="{{ r.valor }}" style="width:110px" aria-label="Valor"></td>
+        <td><select data-campo="departamentos" multiple size="2" aria-label="Departamentos">{% for d in departamentos %}<option value="{{ d.codigo }}" {{ 'selected' if d.codigo in r.departamentos }}>{{ d.codigo }}</option>{% endfor %}</select></td>
+        <td><button type="button" class="secundario pequeno" data-remover aria-label="Remover regra">×</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <small class="erro" data-erro="playbook"></small>
+  <template id="modelo-linha-pb">
+    <tr data-item>
+      <td><input type="checkbox" data-campo="ativo" checked aria-label="Ativa"><input type="hidden" data-campo="id" value=""></td>
+      <td><input type="text" data-campo="rotulo" maxlength="80" placeholder="ex.: Multa até 10%" aria-label="Rótulo"></td>
+      <td><select data-campo="campo" aria-label="Campo">{% for c, rot in campos_playbook.items() %}<option value="{{ c }}">{{ rot }}</option>{% endfor %}</select></td>
+      <td><select data-campo="operador" aria-label="Operador">{% for o in operadores %}<option>{{ o }}</option>{% endfor %}</select></td>
+      <td><input type="text" data-campo="valor" style="width:110px" aria-label="Valor"></td>
+      <td><select data-campo="departamentos" multiple size="2" aria-label="Departamentos">{% for d in departamentos %}<option value="{{ d.codigo }}">{{ d.codigo }}</option>{% endfor %}</select></td>
+      <td><button type="button" class="secundario pequeno" data-remover aria-label="Remover regra">×</button></td>
+    </tr>
+  </template>
+  <div class="acoes">
+    <button type="button" class="secundario" data-adicionar="modelo-linha-pb" data-destino="linhas-pb">+ Nova regra</button>
+    <button type="button" class="secundario" id="b-exemplos-pb">Incluir exemplos</button>
+    <button type="submit">Salvar playbook</button>
+  </div>
+</form>
+{% endif %}
+
+{# ======================================================== SAIDAS #}
+{% if aba == 'saidas' %}
+<form class="cartao" data-secao="saidas" novalidate>
+  <h2>Formatos gerados</h2>
+  <div class="linha" style="gap:18px">
+    {% for chave, rotulo in [('gerar_html','HTML interativo'),('gerar_pdf','PDF'),('gerar_xlsx','Excel (XLSX)'),('gerar_txt','TXT')] %}
+    <label class="inline"><input type="checkbox" name="{{ chave }}" value="1" {{ 'checked' if cfg.saidas[chave] }}> {{ rotulo }}</label>
+    {% endfor %}
+    <span class="dica">O <code>resultado.json</code> é sempre gerado (base da revisão e do histórico).</span>
+  </div>
+  <small class="erro" data-erro="gerar_html"></small>
+  <h2 style="margin-top:16px">Pasta de resultado</h2>
+  <div class="linha">
+    <div class="campo curto"><label for="s-data">Data no nome</label>
+      <select id="s-data" name="formato_data_pasta">{% for f, ex in formatos_data.items() %}<option value="{{ f }}" {{ 'selected' if cfg.saidas.formato_data_pasta == f }}>{{ ex }}</option>{% endfor %}</select></div>
+    <div class="campo curto"><label for="s-hora">Hora no nome</label>
+      <select id="s-hora" name="formato_hora_pasta">{% for f, ex in formatos_hora.items() %}<option value="{{ f }}" {{ 'selected' if cfg.saidas.formato_hora_pasta == f }}>{{ ex }}</option>{% endfor %}</select></div>
+    <label class="inline"><input type="checkbox" name="incluir_hora_na_pasta" value="1" {{ 'checked' if cfg.saidas.incluir_hora_na_pasta }}> incluir hora</label>
+  </div>
+  <p class="dica">Exemplo: <code>FORNECEDOR-{{ formatos_data[cfg.saidas.formato_data_pasta] }}{{ '_' ~ formatos_hora[cfg.saidas.formato_hora_pasta] if cfg.saidas.incluir_hora_na_pasta }}</code></p>
+  <h2 style="margin-top:16px">Comparativo interativo</h2>
+  <div class="linha">
+    <label class="inline"><input type="checkbox" name="incluir_texto_integral" value="1" {{ 'checked' if cfg.saidas.incluir_texto_integral }}> incluir o texto integral (visões lado a lado e documento)</label>
+    <div class="campo curto"><label for="s-visao">Visão ao abrir</label>
+      <select id="s-visao" name="visao_padrao">{% for v, rot in visoes.items() %}<option value="{{ v }}" {{ 'selected' if cfg.saidas.visao_padrao == v }}>{{ rot }}</option>{% endfor %}</select></div>
+  </div>
+  <p class="dica">Idioma e datas: português do Brasil (dd/mm/aaaa, 1.234,56).</p>
+  <div class="acoes"><button type="submit">Salvar saídas</button></div>
+</form>
+{% endif %}
+
+{# ======================================================== ARMAZENAMENTO #}
+{% if aba == 'armazenamento' %}
+<form class="cartao" data-secao="armazenamento" novalidate>
+  <h2>Armazenamento</h2>
+  <div class="linha">
+    <div class="campo curto"><label for="r-dias">Retenção (dias; 0 = nunca)</label>
+      <input type="number" id="r-dias" name="retencao_dias" min="0" max="3650" value="{{ cfg.retencao_dias }}">
+      <small class="erro" data-erro="retencao_dias"></small></div>
+    <div class="campo curto"><label for="r-mb">Tamanho máximo por arquivo (MB)</label>
+      <input type="number" id="r-mb" name="tamanho_maximo_mb" min="1" max="500" value="{{ cfg.tamanho_maximo_mb }}">
+      <small class="erro" data-erro="tamanho_maximo_mb"></small></div>
+    <div class="campo"><label>Extensões aceitas</label>
+      <div class="linha" style="gap:12px">{% for e in extensoes_possiveis %}<label class="inline"><input type="checkbox" name="extensoes_aceitas" value="{{ e }}" {{ 'checked' if e in cfg.extensoes_aceitas }}> {{ e }}</label>{% endfor %}</div>
+      <small class="erro" data-erro="extensoes_aceitas"></small></div>
+  </div>
+  <div class="acoes"><button type="submit">Salvar armazenamento</button></div>
+</form>
+<div class="cartao">
+  <h2>Limpeza por retenção</h2>
+  <p class="dica">Nada é apagado: uploads e resultados mais antigos que o prazo são <b>movidos</b> para <code>dados/_removidos/</code>, com registro em log. Comparações em revisão são mantidas.</p>
+  <div class="acoes">
+    <button type="button" class="secundario" id="b-simular" {{ 'disabled' if not cfg.retencao_dias }}>Simular limpeza</button>
+    <button type="button" id="b-executar" disabled>Mover itens simulados</button>
+  </div>
+  <div id="resultado-retencao"></div>
+</div>
+{% endif %}
+
+{# ======================================================== ASSINATURA #}
+{% if aba == 'assinatura' %}
+<div class="cartao">
+  <div class="linha" style="align-items:flex-end">
+    <div class="campo curto"><label for="ass-dep">Departamento</label>
+      <select id="ass-dep" onchange="location.href='{{ url_for('pagina_ajustes', aba='assinatura') }}&dep='+this.value">
+        {% for d in departamentos %}<option value="{{ d.codigo }}" {{ 'selected' if d.codigo == departamento }}>{{ d.nome }}</option>{% endfor %}
+      </select></div>
+    <p class="dica" style="margin:0 0 8px">Cada departamento tem conta DocuSign própria e isolada — nunca usa a de outro.</p>
+  </div>
+  {% if not docusign_disponivel %}<div class="alerta">Biblioteca não instalada no servidor. Rode <code>pip install --user docusign-esign</code> e reinicie.</div>{% endif %}
+</div>
+{% set ds = cfg.docusign.get(departamento, {}) %}
+{% set sg = segredos.docusign.get(departamento, {}) %}
+<form class="cartao" data-secao="assinatura" novalidate>
+  <input type="hidden" name="departamento" value="{{ departamento }}">
+  <h2>DocuSign — {{ nome_dep }}</h2>
+  <div class="grade-2">
+    {% for chave, rotulo in [('integration_key','Integration key'),('user_id','User ID'),('account_id','Account ID')] %}
+    <div class="campo"><label for="ds-{{ chave }}">{{ rotulo }} {% if sg[chave] %}<span class="selo ok">configurado</span>{% endif %}</label>
+      <input type="password" id="ds-{{ chave }}" name="{{ chave }}" autocomplete="off" placeholder="{{ 'configurado — em branco mantém' if sg[chave] else 'não configurado' }}">
+      <small class="erro" data-erro="{{ chave }}"></small></div>
+    {% endfor %}
+    <div class="campo"><label>Chave privada RSA {% if sg.caminho_chave_privada %}<span class="selo ok">configurada</span>{% endif %}</label>
+      <small class="dica">Envie abaixo (fica em <code>dados/segredos/</code>, nunca é exibida).</small></div>
+    <div class="campo"><label for="ds-base">Ambiente</label>
+      <select id="ds-base" name="base_path">
+        <option value="https://demo.docusign.net/restapi" {{ 'selected' if 'demo' in ds.base_path }}>Sandbox (demo)</option>
+        <option value="https://www.docusign.net/restapi" {{ 'selected' if 'www.' in ds.base_path }}>Produção</option>
+      </select></div>
+    <div class="campo"><label for="ds-auth">Servidor de autenticação</label>
+      <select id="ds-auth" name="auth_server">
+        <option value="account-d.docusign.com" {{ 'selected' if ds.auth_server == 'account-d.docusign.com' }}>account-d (sandbox)</option>
+        <option value="account.docusign.com" {{ 'selected' if ds.auth_server == 'account.docusign.com' }}>account (produção)</option>
+      </select></div>
+    <div class="campo" style="grid-column:1/-1"><label for="ds-assunto">Assunto</label>
+      <input type="text" id="ds-assunto" name="assunto_padrao" maxlength="100" value="{{ ds.assunto_padrao }}">
+      <small class="dica">Variáveis: {% for v in variaveis %}<code>{{ '{' ~ v ~ '}' }}</code> {% endfor %}</small>
+      <small class="erro" data-erro="assunto_padrao"></small></div>
+    <div class="campo" style="grid-column:1/-1"><label for="ds-msg">Mensagem</label>
+      <textarea id="ds-msg" name="mensagem_padrao" maxlength="1000">{{ ds.mensagem_padrao }}</textarea>
+      <small class="erro" data-erro="mensagem_padrao"></small></div>
+  </div>
+  <div class="linha" style="gap:16px">
+    <label class="inline"><input type="checkbox" name="ativo" value="1" {{ 'checked' if ds.ativo }}> Assinatura eletrônica ativa neste departamento</label>
+    <label class="inline"><input type="checkbox" name="limpar_credenciais" value="1"> Apagar credenciais salvas</label>
+  </div>
+  <small class="erro" data-erro="ativo"></small>
+  <div class="acoes">
+    <button type="submit">Salvar</button>
+    <button type="button" class="secundario" id="b-testar-ds" data-dep="{{ departamento }}" {{ 'disabled' if not docusign_disponivel }}>Testar conexão</button>
+    <span id="resultado-teste-ds" class="dica"></span>
+  </div>
+</form>
+<div class="cartao">
+  <h2>Chave privada RSA — {{ nome_dep }}</h2>
+  <form data-upload="/api/ajustes/assinatura/chave" class="linha" style="gap:8px;align-items:center" enctype="multipart/form-data">
+    <input type="hidden" name="departamento" value="{{ departamento }}">
+    <input type="file" name="chave" accept=".pem,.key,.txt" aria-label="Arquivo da chave privada">
+    <button type="submit" class="secundario pequeno">Enviar chave</button>
+    <small class="erro" data-erro="chave"></small>
+  </form>
+</div>
+<div class="cartao">
+  <h2>Situação por departamento</h2>
+  <table>
+    <thead><tr><th>Departamento</th><th>Credenciais</th><th>Status</th></tr></thead>
+    <tbody>{% for d in departamentos %}{% set s = segredos.docusign.get(d.codigo, {}) %}
+      <tr><td>{{ d.nome }}{% if d.codigo == departamento %}<span class="etiqueta">atual</span>{% endif %}</td>
+      <td>{{ 'completas' if s and s.values()|select|list|length == 4 else 'incompletas' }}</td>
+      <td>{% if cfg.docusign.get(d.codigo, {}).get('ativo') %}<span class="selo ok">ativa</span>{% else %}<span class="selo err">inativa</span>{% endif %}</td></tr>
+    {% endfor %}</tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ======================================================== IA #}
+{% if aba == 'ia' %}
+<div class="cartao ia-mestre">
+  <div class="cab-cartao">
+    <div>
+      <h2 style="margin:0">Inteligência artificial</h2>
+      <p class="dica" style="margin:4px 0 0">Desligada por padrão (ative com a variável de ambiente CONTRATOS_IA_DISPONIVEL=1).</p>
+    </div>
+    <label class="interruptor" title="Desligada por padrão">
+      <input type="checkbox" disabled>
+      <span class="trilho" aria-hidden="true"></span>
+      <span>IA desligada</span>
+    </label>
+  </div>
+  <p class="dica" style="margin-top:12px">A comparação, o risco, o playbook, a revisão e os relatórios funcionam normalmente sem IA. Nenhum conteúdo de contrato sai deste computador.</p>
+</div>
+{% endif %}
+
+{# ======================================================== SISTEMA #}
+{% if aba == 'sistema' %}
+<div class="cartao">
+  <h2>Configuração</h2>
+  <div class="acoes" style="margin-top:0">
+    <a href="{{ url_for('api_exportar_config') }}"><button type="button" class="secundario">Exportar configuração (sem segredos)</button></a>
+    <label class="botao secundario" for="imp-config">Importar configuração…</label>
+    <input type="file" id="imp-config" accept=".json,application/json" hidden>
+  </div>
+  <small class="erro" data-erro="arquivo"></small>
+  <p class="dica">Na importação, cada seção é validada; credenciais atuais são mantidas.</p>
+</div>
+<div class="cartao">
+  <h2>Backups automáticos</h2>
+  {% if backups %}
+  <table><thead><tr><th>Data</th><th>Arquivo</th><th class="num">Tamanho</th><th></th></tr></thead><tbody>
+    {% for b in backups %}<tr><td>{{ b.data }}</td><td><code>{{ b.arquivo }}</code></td><td class="num">{{ b.tamanho_kb }} KB</td>
+      <td><button type="button" class="secundario pequeno" data-restaurar="{{ b.arquivo }}">Restaurar</button></td></tr>{% endfor %}
+  </tbody></table>
+  {% else %}<p class="dica">Nenhum backup ainda. Cada gravação feita aqui guarda a versão anterior.</p>{% endif %}
+</div>
+<div class="cartao">
+  <h2>Instalação</h2>
+  <p><span class="chave">Motor de comparação</span> <code>comparar_contratos.py v{{ versao_motor }}</code></p>
+  <p><span class="chave">Pasta de dados</span> <code>{{ pasta_dados }}</code></p>
+  <p><span class="chave">Arquivo de configuração</span> <code>{{ caminho_config }}</code></p>
+  <p><span class="chave">Endereço</span> <code>{{ request.host_url }}</code> <span class="dica">(somente neste computador)</span></p>
+</div>
+<div class="cartao">
+  <h2>Diagnóstico</h2>
+  <p><span class="chave">Python</span> {{ diag.python }} {% if diag.python_ok %}<span class="selo ok">ok</span>{% else %}<span class="selo err">requer 3.10+</span>{% endif %}</p>
+  <p><span class="chave">Sistema</span> {{ diag.sistema }}</p>
+  <p><span class="chave">Fila</span> {{ diag.fila }} aguardando · {{ diag.processando }} processando · {{ diag.execucoes }} comparações no histórico</p>
+  {% if diag.disco %}<p><span class="chave">Espaço em disco</span> {{ diag.disco.livre_gb }} GB livres de {{ diag.disco.total_gb }} GB</p>{% endif %}
+  <table style="margin-top:8px"><thead><tr><th>Biblioteca</th><th>Versão</th></tr></thead><tbody>
+    {% for nome, versao in diag.bibliotecas.items() %}<tr><td>{{ nome }}</td><td>{% if versao %}{{ versao }}{% else %}<span class="selo err">não instalada</span>{% endif %}</td></tr>{% endfor %}
+  </tbody></table>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='ajustes.js') }}"></script>
+{% endblock %}

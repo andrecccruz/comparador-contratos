@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-br" data-tema="claro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="gerador" content="__GERADOR__">
+<title>__TITULO__</title>
+<link rel="icon" href="__LOGO__">
+<script>
+(function(){try{var t=localStorage.getItem('contratos_tema');
+if(!t&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)t='escuro';
+document.documentElement.setAttribute('data-tema',t==='escuro'?'escuro':'claro');}catch(e){}})();
+</script>
+<style>
+__TOKENS__
+__CSS__
+</style>
+</head>
+<body>
+<a class="pular" href="#lista">Pular para as ocorrências</a>
+
+<header class="topo" id="topo">
+  <div class="marca">
+    <img src="__LOGO__" alt="Logo __PRODUTO__" width="40" height="40">
+    <div>
+      <div class="produto">__PRODUTO__</div>
+      <h1 id="titulo-doc">Comparativo de devolução</h1>
+      <div class="sub" id="sub-meta"></div>
+    </div>
+  </div>
+  <div class="risco-geral" id="risco-geral" role="img"></div>
+</header>
+
+<button type="button" class="alternar-resumo" id="b-resumo" aria-expanded="true" aria-controls="painel-superior">
+  <span>Ficha do contrato e alertas</span> <span class="resumo-linha" id="resumo-linha"></span> <b aria-hidden="true">▾</b></button>
+<section class="painel-superior" id="painel-superior" aria-label="Resumo do contrato">
+  <div class="cartao ficha" id="ficha"></div>
+  <div class="cartao alertas" id="alertas" hidden></div>
+  <div class="cartao ia" id="painel-ia" hidden></div>
+</section>
+
+<nav class="contadores" id="contadores" aria-label="Filtrar por categoria"></nav>
+
+<div class="barra" id="barra" role="toolbar" aria-label="Filtros e visões">
+  <div class="grupo busca">
+    <label for="f-busca" class="rotulo-oculto">Buscar no texto</label>
+    <input type="search" id="f-busca" placeholder="Buscar no texto (/)" autocomplete="off">
+  </div>
+  <div class="grupo suspenso">
+    <button type="button" class="secundario" id="b-filtros" data-pop="pop-filtros" aria-expanded="false" aria-controls="pop-filtros">Filtros <span class="n-filtros" id="n-filtros" hidden></span> ▾</button>
+    <div class="pop" id="pop-filtros" hidden>
+      <button type="button" class="alternar" id="f-criticos" aria-pressed="false" title="Só críticos (c)">Só críticos</button>
+      <label class="campo-curto">Risco
+        <select id="f-risco" aria-label="Faixa de risco">
+          <option value="0-100">todos</option>
+          <option value="60-100">Alto (60+)</option>
+          <option value="30-100">Médio ou mais (30+)</option>
+          <option value="30-59">só Médio</option>
+          <option value="0-29">só Baixo</option>
+        </select></label>
+      <label class="campo-curto">Cláusula
+        <select id="f-clausula" aria-label="Cláusula"><option value="">todas</option></select></label>
+      <label class="campo-curto">Revisão
+        <select id="f-status" aria-label="Status da revisão">
+          <option value="">todas</option><option value="pendente">pendentes</option>
+          <option value="aceito">aceitas</option><option value="rejeitado">rejeitadas</option>
+          <option value="comentado">com comentário</option>
+        </select></label>
+      <div class="checks">
+        <label><input type="checkbox" id="f-oc-preenchido"> Ocultar preenchidos</label>
+        <label><input type="checkbox" id="f-oc-formatacao"> Ocultar formatação</label>
+      </div>
+      <button type="button" class="secundario" id="b-limpar-filtros">Limpar filtros</button>
+    </div>
+  </div>
+  <div class="grupo visoes" role="radiogroup" aria-label="Visão">
+    <button type="button" data-visao="inline" role="radio">Lista</button>
+    <button type="button" data-visao="lado" role="radio">Lado a lado</button>
+    <button type="button" data-visao="documento" role="radio">Documento</button>
+  </div>
+  <div class="grupo suspenso">
+    <button type="button" class="icone" id="b-mais" data-pop="pop-mais" aria-expanded="false" aria-controls="pop-mais" aria-label="Mais opções" title="Mais opções">⋯</button>
+    <div class="pop pop-menu direita" id="pop-mais" hidden role="menu">
+      <button type="button" role="menuitem" id="b-tema">◐ Modo claro / escuro</button>
+      <button type="button" role="menuitem" id="b-imprimir">⎙ Imprimir (respeita os filtros)</button>
+      <button type="button" role="menuitem" id="b-ajuda">? Atalhos de teclado</button>
+      <button type="button" role="menuitem" id="b-exportar">Exportar revisão (.json)</button>
+      <label class="item-menu" role="menuitem" for="b-importar">Importar revisão…</label>
+      <input type="file" id="b-importar" accept="application/json,.json" hidden>
+    </div>
+  </div>
+</div>
+
+<div class="progresso" id="progresso">
+  <div class="progresso-texto"><span id="progresso-texto"></span> <span class="modo" id="modo-salvar"></span></div>
+  <div class="progresso-barra" role="progressbar" aria-valuemin="0" id="progresso-barra"><div id="progresso-valor"></div></div>
+</div>
+
+<div class="corpo-principal">
+  <aside class="sumario" id="sumario" aria-label="Sumário por cláusula">
+    <button type="button" class="abrir-sumario" id="b-sumario" aria-expanded="false" aria-controls="sumario-lista">Cláusulas</button>
+    <div class="sumario-conteudo" id="sumario-lista">
+      <div class="minimapa" id="minimapa" aria-label="Mapa de onde estão as mudanças"></div>
+      <ol class="lista-clausulas" id="lista-clausulas"></ol>
+    </div>
+  </aside>
+  <main id="lista" class="lista" tabindex="-1" aria-live="polite"></main>
+</div>
+
+<footer class="rodape" id="rodape"></footer>
+
+<div class="dialogo" id="dialogo-ajuda" role="dialog" aria-modal="true" aria-labelledby="ajuda-titulo" hidden>
+  <div class="dialogo-caixa">
+    <h2 id="ajuda-titulo">Atalhos de teclado</h2>
+    <dl class="atalhos">
+      <dt><kbd>j</kbd> / <kbd>k</kbd></dt><dd>próxima / anterior ocorrência</dd>
+      <dt><kbd>a</kbd></dt><dd>aceitar a ocorrência atual</dd>
+      <dt><kbd>x</kbd></dt><dd>rejeitar a ocorrência atual</dd>
+      <dt><kbd>m</kbd></dt><dd>comentar a ocorrência atual</dd>
+      <dt><kbd>c</kbd></dt><dd>só críticos (liga/desliga)</dd>
+      <dt><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></dt><dd>lista · lado a lado · documento</dd>
+      <dt><kbd>/</kbd></dt><dd>buscar no texto</dd>
+      <dt><kbd>?</kbd></dt><dd>esta ajuda</dd>
+      <dt><kbd>Esc</kbd></dt><dd>fechar / sair do campo</dd>
+    </dl>
+    <p class="nota">A revisão fica salva neste navegador (ou no servidor, quando aberto dentro do sistema). Use <b>Exportar revisão</b> para guardar ou enviar a outra pessoa.</p>
+    <button type="button" id="b-fechar-ajuda">Fechar</button>
+  </div>
+</div>
+<div class="aviso-flutuante" id="aviso" role="status" aria-live="polite"></div>
+
+<script type="application/json" id="dados-resultado">__DADOS__</script>
+<script>
+__JS__
+</script>
+</body>
+</html>

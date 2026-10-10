@@ -1,0 +1,14 @@
+{
+  "id": "padrao",
+  "ordem": 1,
+  "rotulo": "Padrão",
+  "descricao": "Tema padrão: cor azul neutra e monograma gerado automaticamente",
+  "identidade": {
+    "nome_produto": "Comparador de Contratos",
+    "nome_curto": "Comparador",
+    "organizacao_contratante": "Minha Organização",
+    "cor_primaria": "#2F5BEA",
+    "logo": "",
+    "rodape_relatorio": "Uso interno"
+  }
+}

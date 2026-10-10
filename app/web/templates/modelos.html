@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<h1>Modelos padrão</h1>
+<p class="legenda">Contratos-modelo usados como referência nas comparações de {{ nome_dep }}.</p>
+
+<div class="cartao">
+  <div class="linha">
+    <div class="campo curto">
+      <label for="dep">Departamento</label>
+      <select id="dep" onchange="location.href='/modelos?dep='+this.value">
+        {% for d in departamentos %}
+        <option value="{{ d.codigo }}" {{ 'selected' if d.codigo == departamento }}>{{ d.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <form method="post" action="/modelos/upload" enctype="multipart/form-data" class="linha" style="gap:10px">
+      <input type="hidden" name="departamento" value="{{ departamento }}">
+      <div class="campo">
+        <label for="modelo">Enviar novo modelo</label>
+        <input type="file" name="modelo" id="modelo" accept=".docx,.pdf,.txt" required
+               style="border:1px solid var(--borda);border-radius:8px;padding:7px">
+      </div>
+      <button type="submit">Enviar</button>
+    </form>
+  </div>
+</div>
+
+<div class="cartao">
+  <div class="linha">
+    <div class="campo"><label for="f-arquivo">Arquivo</label>
+      <input type="text" id="f-arquivo" placeholder="parte do nome" oninput="filtrar()"></div>
+    <div class="campo curto"><label for="f-de">Data inicial</label>
+      <input type="date" id="f-de" oninput="filtrar()"></div>
+    <div class="campo curto"><label for="f-ate">Data final</label>
+      <input type="date" id="f-ate" oninput="filtrar()"></div>
+    <button class="secundario" onclick="limparFiltros()">Limpar filtros</button>
+  </div>
+</div>
+
+<div class="cartao">
+  <table>
+    <thead><tr>
+      <th style="width:26%">Arquivo</th><th style="width:13%">Data</th>
+      <th style="width:9%" class="num">Tamanho</th><th style="width:8%" class="num">Versões</th><th style="width:28%">Observações</th><th></th>
+    </tr></thead>
+    <tbody id="corpo">
+      {% for m in modelos %}
+      <tr data-arquivo="{{ m.arquivo | lower }}" data-iso="{{ m.data_iso }}">
+        <td class="arquivo" title="{{ m.arquivo }}">{{ m.arquivo }}</td>
+        <td>{{ m.atualizado }}{% if m.data_manual %}<span class="etiqueta">manual</span>{% endif %}</td>
+        <td class="num">{{ m.tamanho_kb }} KB</td>
+        <td class="num">{{ m.versoes + 1 }}</td>
+        <td class="obs {{ 'vazia' if not m.observacao }}">{{ m.observacao or 'sem observações' }}</td>
+        <td><div class="links-acao">
+          <button type="button" class="btn-abrir"
+                  onclick="abrirModelo('{{ m.arquivo|replace("'","") }}','{{ m.data_iso }}')">Abrir</button>
+        </div></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if not modelos %}<div class="vazio">Nenhum modelo cadastrado. Envie o contrato-padrão deste departamento acima.</div>{% endif %}
+  <div class="contador" id="contador"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const DEPARTAMENTO = '{{ departamento }}';
+const META_MODELOS = {
+  {% for m in modelos %}
+  {{ m.arquivo|tojson }}: {data: {{ m.data_iso|tojson }}, obs: {{ m.observacao|tojson }}},
+  {% endfor %}
+};
+
+function abrirModelo(arquivo, dataIso){
+  const meta = META_MODELOS[arquivo] || {data: dataIso, obs: ''};
+  const escapar = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+  const extra =
+    '<form method="post" action="/modelos/anotar" class="linha" style="align-items:flex-end;gap:12px">' +
+    '<input type="hidden" name="departamento" value="' + DEPARTAMENTO + '">' +
+    '<input type="hidden" name="arquivo" value="' + escapar(arquivo) + '">' +
+    '<div class="campo curto"><label>Data do modelo</label>' +
+    '<input type="date" name="data" value="' + escapar(meta.data) + '"></div>' +
+    '<div class="campo" style="flex:1;min-width:280px"><label>Observações</label>' +
+    '<textarea name="observacao" style="min-height:44px">' + escapar(meta.obs) + '</textarea></div>' +
+    '<button type="submit">Salvar</button>' +
+    '</form>' +
+    '<form method="post" action="/modelos/excluir" style="margin-top:10px" ' +
+    'onsubmit="return confirm(\'Remover este modelo? Ele vai para a subpasta _removidos.\')">' +
+    '<input type="hidden" name="departamento" value="' + DEPARTAMENTO + '">' +
+    '<input type="hidden" name="arquivo" value="' + escapar(arquivo) + '">' +
+    '<button type="submit" class="secundario pequeno" style="color:var(--erro)">Remover modelo</button>' +
+    '</form>' +
+    '<div id="versoes-modelo" style="margin-top:12px"><span class="dica">Carregando versões…</span></div>';
+
+  const tema = (document.documentElement.getAttribute('data-tema') || 'claro');
+  abrirPainel({
+    titulo: arquivo,
+    visualizarUrl: '/modelos/ver/' + DEPARTAMENTO + '/' + encodeURIComponent(arquivo) +
+                   '?embutido=1&tema=' + tema,
+    downloads: [{rotulo:'Arquivo original', url:'/modelos/arquivo/' + DEPARTAMENTO + '/' +
+                 encodeURIComponent(arquivo) + '?baixar=1'}],
+    extraHtml: extra
+  });
+  carregarVersoes(arquivo);
+}
+
+function carregarVersoes(arquivo){
+  const base = '/modelos/versoes/' + DEPARTAMENTO + '/' + encodeURIComponent(arquivo);
+  const alvo = document.getElementById('versoes-modelo');
+  fetch(base).then(r => r.json()).then(j => {
+    if(!j.versoes.length){
+      alvo.innerHTML = '<span class="dica">Sem versões anteriores. Ao enviar um arquivo com o mesmo nome, a versão atual é guardada aqui.</span>';
+      return;
+    }
+    alvo.innerHTML = '<b style="font-size:13px">Versões anteriores</b><ul style="margin:6px 0;padding-left:18px;font-size:13px">' +
+      j.versoes.map(v => '<li>' + escaparHtml(v.arquivado_em) + (v.observacao ? ' — ' + escaparHtml(v.observacao) : '') +
+        ' <a href="' + base + '/baixar/' + encodeURIComponent(v.arquivo) + '">baixar</a>' +
+        ' · <button type="button" class="secundario pequeno" data-versao="' + escaparHtml(v.arquivo) + '">comparar com a atual</button></li>').join('') +
+      '</ul><div id="versoes-msg" class="dica"></div>';
+    alvo.querySelectorAll('[data-versao]').forEach(b => b.addEventListener('click', () => {
+      document.getElementById('versoes-msg').textContent = 'Comparando…';
+      _postJSON(base + '/comparar', {versao: b.getAttribute('data-versao')}).then(r => {
+        if(!r.ok){ document.getElementById('versoes-msg').textContent = r.erro || 'Falha.'; return; }
+        abrirPainel({titulo: arquivo + ' — versão anterior × atual (' + r.total + ' diferenças)',
+                     visualizarUrl: r.url, downloads: []});
+      });
+    }));
+  }).catch(() => { alvo.innerHTML = ''; });
+}
+
+function filtrar(){
+  const arq = document.getElementById('f-arquivo').value.trim().toLowerCase();
+  const de = document.getElementById('f-de').value;
+  const ate = document.getElementById('f-ate').value;
+  let visiveis = 0, total = 0;
+  document.querySelectorAll('#corpo tr').forEach(tr => {
+    total++;
+    const iso = tr.dataset.iso;
+    const ok = (!arq || tr.dataset.arquivo.includes(arq)) &&
+               (!de || iso >= de) && (!ate || iso <= ate);
+    tr.style.display = ok ? '' : 'none';
+    if(ok) visiveis++;
+  });
+  document.getElementById('contador').textContent =
+    visiveis === total ? total + ' modelo(s)' : visiveis + ' de ' + total + ' modelo(s)';
+}
+function limparFiltros(){
+  ['f-arquivo','f-de','f-ate'].forEach(id => document.getElementById(id).value='');
+  filtrar();
+}
+filtrar();
+</script>
+{% endblock %}

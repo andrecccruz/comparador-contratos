@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block titulo %}{{ ident.nome_produto }}{% endblock %}</title>
+<link rel="icon" href="{{ url_for('logo_identidade', v=versao_logo) }}">
+<script>
+(function(){
+  try{
+    var t = localStorage.getItem('contratos_tema') || 'claro';
+    document.documentElement.setAttribute('data-tema', t);
+  }catch(e){ document.documentElement.setAttribute('data-tema','claro'); }
+})();
+</script>
+<link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}">
+<style id="tokens-identidade">{{ tokens_css | safe }}</style>
+</head>
+<body class="{{ 'pagina-cheia' if pagina_cheia }}">
+<div class="layout">
+
+  <nav class="lateral" aria-label="Navegação principal">
+    <div class="marca">
+      <img src="{{ url_for('logo_identidade', v=versao_logo) }}" alt="Logo {{ ident.nome_produto }}">
+      {% set dep_obj = (departamentos_menu | selectattr('codigo', 'equalto', departamento) | first) %}
+      <div class="nome">{{ ident.nome_curto }}<span class="dep">{% if dep_obj and dep_obj.cor %}<i style="background:{{ dep_obj.cor }}" aria-hidden="true"></i>{% endif %}{{ nome_dep }}</span></div>
+    </div>
+    <div class="menu">
+      <a href="{{ url_for('pagina_comparar', dep=departamento) }}" class="{{ 'ativo' if pagina=='comparar' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3v5h5M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M9 13h6M9 17h4"/></svg>
+        Comparar</a>
+      <a href="{{ url_for('pagina_historico', dep=departamento) }}" class="{{ 'ativo' if pagina=='historico' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        Histórico</a>
+      <a href="{{ url_for('pagina_painel', dep=departamento) }}" class="{{ 'ativo' if pagina=='painel' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+        Painel</a>
+      <a href="{{ url_for('pagina_modelos', dep=departamento) }}" class="{{ 'ativo' if pagina=='modelos' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h6l2 2h8v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7z"/></svg>
+        Modelos</a>
+      <a href="{{ url_for('pagina_ajustes', dep=departamento) }}" class="{{ 'ativo' if pagina=='ajustes' }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 0 0-1.7-1L14.5 2h-4l-.3 2.6a7 7 0 0 0-1.7 1l-2.4-1-2 3.4L6 10a7 7 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.4 2.6h4l.3-2.6a7 7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6c.06-.33.1-.66.1-1z"/></svg>
+        Ajustes</a>
+    </div>
+    <div class="rodape-lateral">
+      Execução local<br>{% if departamento %}{{ departamento }} · {% endif %}motor v{{ versao_motor }}
+    </div>
+  </nav>
+
+  <main class="conteudo" id="conteudo">
+    {% block conteudo %}{% endblock %}
+  </main>
+</div>
+<div class="painel" id="painel" onclick="if(event.target===this)fecharPainel()">
+  <div class="painel-caixa">
+    <div class="painel-topo">
+      <strong id="painel-titulo"></strong>
+      <button class="fechar" onclick="fecharPainel()" title="Fechar (Esc)" aria-label="Fechar">&times;</button>
+    </div>
+    <div class="painel-extra" id="painel-extra" style="display:none"></div>
+    <div class="painel-barra" id="painel-barra">
+      <label for="painel-formato">Baixar como</label>
+      <select id="painel-formato"></select>
+      <button type="button" onclick="baixarSelecionado()">Baixar</button>
+    </div>
+    <iframe class="painel-frame" id="painel-frame" title="Visualização"
+            sandbox="allow-scripts allow-same-origin allow-downloads allow-modals allow-popups"
+            src="about:blank"></iframe>
+    <div class="painel-vazio" id="painel-vazio" style="display:none"></div>
+  </div>
+</div>
+
+<script>window.IA_ATIVA = {{ 'true' if ia_ativa else 'false' }};</script>
+<div id="aviso-desconectado" role="alert" hidden style="position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center">
+  <div style="background:var(--fundo-cartao,#fff);color:var(--texto,#222);max-width:440px;padding:24px 28px;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.3);font-size:15px;line-height:1.5">
+    <b style="font-size:17px">O Comparador foi encerrado</b>
+    <p style="margin:10px 0 0">Feche esta janela e abra de novo pelo atalho <b>Comparador de Contratos</b> na Área de Trabalho. Nada foi perdido.</p>
+  </div>
+</div>
+<script>(function(){
+  var falhas=0, aviso=document.getElementById('aviso-desconectado');
+  aviso.style.display='none';
+  function p(){
+    fetch('{{ url_for('api_ping') }}',{cache:'no-store'})
+      .then(function(r){ if(!r.ok) throw 0; falhas=0; aviso.hidden=true; aviso.style.display='none'; })
+      .catch(function(){ if(++falhas>=2){ aviso.hidden=false; aviso.style.display='flex'; } else { setTimeout(p,3000); } });
+  }
+  p(); setInterval(p,30000);
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden) p(); });
+})();</script>
+<script src="{{ url_for('static', filename='painel.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

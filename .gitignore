@@ -1,0 +1,26 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# dados locais e configuração gerada em tempo de execução
+app/web/dados/
+app/web/config_web.json
+app/dados/
+dados/
+ia_config/
+logs/
+*.log
+
+# artefatos do instalador
+stage/
+runtime/
+wheels/
+*.exe
+
+.DS_Store
+Thumbs.db
+
+# configuração local da linha de comando
+app/config.json

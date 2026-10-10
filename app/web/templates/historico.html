@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block titulo %}Histórico · {{ ident.nome_produto }}{% endblock %}
+{% block conteudo %}
+<h1>Histórico</h1>
+<p class="legenda">Comparações de {{ nome_dep }}, com status da revisão e responsável. Gráficos e análises ficam no <a href="{{ url_for('pagina_painel', **request.args) }}">Painel</a>.</p>
+
+<form class="cartao" method="get" action="{{ url_for('pagina_historico') }}">
+  <div class="linha">
+    <div class="campo curto"><label for="f-dep">Departamento</label>
+      <select id="f-dep" name="dep">
+        <option value="*" {{ 'selected' if dep_filtro == '*' }}>Todos</option>
+        {% for d in departamentos %}<option value="{{ d.codigo }}" {{ 'selected' if dep_filtro == d.codigo }}>{{ d.nome }}{{ ' (excluído)' if d.excluido else ('' if d.ativo else ' (inativo)') }}</option>{% endfor %}
+      </select></div>
+    <div class="campo curto"><label for="f-de">De</label><input type="date" id="f-de" name="de" value="{{ filtros.de }}"></div>
+    <div class="campo curto"><label for="f-ate">Até</label><input type="date" id="f-ate" name="ate" value="{{ filtros.ate }}"></div>
+    <div class="campo curto"><label for="f-forn">Fornecedor</label><input type="text" id="f-forn" name="fornecedor" value="{{ filtros.fornecedor }}" placeholder="parte do nome"></div>
+    <div class="campo curto"><label for="f-status">Status da revisão</label>
+      <select id="f-status" name="status"><option value="">todos</option>
+        {% for s in status_revisao %}<option value="{{ s }}" {{ 'selected' if filtros.status == s }}>{{ {'pendente':'Pendente','em_revisao':'Em revisão','aprovado':'Aprovado','devolvido':'Devolvido'}[s] }}</option>{% endfor %}
+      </select></div>
+    <div class="campo"><label for="f-busca">Busca</label><input type="search" id="f-busca" name="busca" value="{{ filtros.busca }}" placeholder="arquivo, CNPJ, modelo, responsável"></div>
+    <button type="submit">Filtrar</button>
+    <a href="{{ url_for('pagina_historico', dep=dep_filtro) }}"><button type="button" class="secundario">Limpar</button></a>
+    <a href="{{ url_for('historico_csv', **request.args) }}"><button type="button" class="secundario">Exportar CSV</button></a>
+  </div>
+</form>
+
+
+
+
+<div class="cartao">
+  <div class="tabela-rolavel">
+  <table>
+    <thead><tr>
+      <th>Data</th>{% if dep_filtro == '*' %}<th>Dep.</th>{% endif %}<th>Arquivo</th><th>Fornecedor</th>
+      <th class="num">Rodada</th><th>Risco</th><th class="num">Pend.</th><th class="num">Críticos</th>
+      <th>Revisão</th><th>Responsável</th><th></th>
+    </tr></thead>
+    <tbody id="corpo">
+      {% for e in execucoes %}
+      <tr data-id="{{ e.id }}">
+        <td>{{ e.criado_em }}</td>
+        {% if dep_filtro == '*' %}<td><code>{{ e.departamento }}</code></td>{% endif %}
+        <td class="arquivo" title="{{ e.arquivo }}">{{ e.arquivo }}{% if e.lote %} <a class="etiqueta" href="{{ url_for('pagina_lote', lote_id=e.lote) }}">lote</a>{% endif %}</td>
+        <td class="arquivo" title="{{ e.fornecedor }}">{{ e.fornecedor }}</td>
+        <td class="num">{% if e.rodadas_total and e.rodadas_total > 1 %}<a href="{{ url_for('pagina_rodadas', execucao_id=e.id) }}">v{{ e.rodada }}</a>{% else %}{{ 'v1' if e.status == 'concluido' else '—' }}{% endif %}</td>
+        <td>{% if e.selo_risco %}<span class="selo risco-{{ 'Medio' if e.selo_risco == 'Médio' else e.selo_risco }}">{{ e.selo_risco }} · {{ e.risco_geral }}</span>{% elif e.status == 'concluido' %}<span class="dica">v1.1</span>{% else %}—{% endif %}</td>
+        <td class="num">{{ e.pendentes if e.pendentes else ('—' if e.status != 'concluido' else 0) }}</td>
+        <td class="num {{ 'tem-critico' if e.criticos }}">{{ e.criticos if e.status == 'concluido' else '—' }}</td>
+        <td class="st-rev">{{ {'pendente':'Pendente','em_revisao':'Em revisão','aprovado':'Aprovado','devolvido':'Devolvido'}[e.status_revisao or 'pendente'] }}</td>
+        <td class="arquivo">{{ e.responsavel or '' }}</td>
+        <td><div class="links-acao">
+          {% if e.status == 'concluido' %}
+          <button type="button" class="btn-abrir" data-abrir="{{ e.id }}"
+                  data-nome="{{ e.arquivo }}"
+                  data-info='{{ {"status_revisao": e.status_revisao or "pendente", "responsavel": e.responsavel or "", "rodada": e.rodada or 1, "rodadas_total": e.rodadas_total or 1} | tojson }}'>Abrir</button>
+          {% else %}<span class="selo {{ 'err' if e.status == 'erro' else 'proc' }}" title="{{ e.erro or '' }}">{{ e.status }}</span>{% endif %}
+        </div></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if not execucoes %}<div class="vazio">Nenhuma comparação com estes filtros.</div>{% endif %}
+  <div class="contador">{{ execucoes | length }} comparação(ões)</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('corpo').addEventListener('click', function (e) {
+  var b = e.target.closest('[data-abrir]'); if (!b) return;
+  location.href = '/resultado/' + encodeURIComponent(b.getAttribute('data-abrir'));
+});
+</script>
+{% endblock %}

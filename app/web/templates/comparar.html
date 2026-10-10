@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<h1>Comparar devolução</h1>
+<p class="legenda">Anexe o contrato devolvido pelo fornecedor. O sistema compara com o modelo padrão do departamento e gera o relatório de alterações.</p>
+
+<div class="cartao">
+  <div class="linha">
+    <div class="campo">
+      <label for="departamento">Departamento</label>
+      <select id="departamento" onchange="trocarDepartamento(this.value)">
+        {% for d in departamentos %}
+        <option value="{{ d.codigo }}" {{ 'selected' if d.codigo == departamento }}>{{ d.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="campo" style="flex:1">
+      <label for="modelo">Modelo padrão</label>
+      <select id="modelo">
+        {% for m in modelos %}
+        <option value="{{ m.arquivo }}">{{ m.arquivo }} — atualizado em {{ m.atualizado }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="campo">
+      <label for="fornecedor">Fornecedor (opcional)</label>
+      <input type="text" id="fornecedor" placeholder="detectar automaticamente">
+    </div>
+  </div>
+  {% if not modelos %}
+  <div class="alerta" style="margin-top:14px">Nenhum modelo padrão cadastrado para {{ nome_dep }}. Envie um em <a href="{{ url_for('pagina_modelos', dep=departamento) }}">Modelos</a>.</div>
+  {% endif %}
+</div>
+
+<div class="zona" id="zona" onclick="document.getElementById('arquivos').click()">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4m0 0L8 8m4-4 4 4"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+  <div class="titulo">Arraste a devolução do fornecedor aqui</div>
+  <div class="dica">ou clique para escolher · {{ cfg_extensoes|join(', ') }} · vários arquivos de uma vez viram um lote com resumo consolidado</div>
+  <input type="file" id="arquivos" multiple accept="{{ cfg_extensoes|join(',') }}" style="display:none" onchange="mostrarSelecionados()">
+  <div class="selecionados" id="selecionados"></div>
+</div>
+
+<div class="acoes">
+  <button id="btn" onclick="enviar(false)">Comparar</button>
+  <button class="secundario" onclick="limparTudo()">Limpar</button>
+  <span id="aviso" style="color:var(--erro);font-size:13px"></span>
+</div>
+<div class="alerta-info" id="duplicados" hidden></div>
+<div class="alerta-info" id="aviso-lote" hidden></div>
+
+<div class="cartao" style="margin-top:18px">
+  <h2>Resultado</h2>
+  <table>
+    <thead><tr>
+      <th style="width:24%">Arquivo</th><th style="width:19%">Fornecedor</th>
+      <th style="width:10%">Status</th><th style="width:11%">Risco</th>
+      <th style="width:7%" class="num">Preench.</th><th style="width:7%" class="num">Mudanças</th>
+      <th style="width:7%" class="num">Pend.</th><th style="width:7%" class="num">Críticos</th><th></th>
+    </tr></thead>
+    <tbody id="corpo">
+      {% for e in execucoes %}
+      <tr data-id="{{ e.id }}">
+        <td class="arquivo" title="{{ e.arquivo }}">{{ e.arquivo }}</td>
+        <td class="arquivo">{{ e.fornecedor }}</td>
+        <td><span class="selo {{ 'ok' if e.status=='concluido' else 'err' if e.status=='erro' else 'proc' }}">{{ {'concluido':'concluído','na_fila':'na fila'}.get(e.status, e.status) }}</span></td>
+        <td>{% if e.selo_risco %}<span class="selo risco-{{ 'Medio' if e.selo_risco == 'Médio' else e.selo_risco }}">{{ e.selo_risco }} · {{ e.risco_geral }}</span>{% elif e.status == 'concluido' %}<span class="dica">v1.1</span>{% else %}—{% endif %}</td>
+        <td class="num">{{ e.preenchidos if e.status=='concluido' and e.preenchidos is not none else '—' }}</td>
+        <td class="num">{{ (e.alterados or 0) + (e.incluidos or 0) + (e.removidos or 0) if e.status=='concluido' else '—' }}</td>
+        <td class="num">{{ e.pendentes if e.status=='concluido' and e.pendentes is not none else '—' }}</td>
+        <td class="crit {{ 'tem-critico' if e.criticos }}">{{ e.criticos if e.status=='concluido' else '—' }}</td>
+        <td><div class="links-acao">
+          {% if e.status=='concluido' %}
+          {% if ia_recursos.resumo_rapido %}<button type="button" class="link-ia" data-resumo-ia="{{ e.id }}" aria-expanded="false" title="Resumo curto feito pela IA a partir do resultado">✦ Resumo com IA</button>{% endif %}
+          {% if e.docusign_envelope_id %}<span class="selo {{ 'ok' if e.docusign_status=='assinado' else 'proc' }}">{{ e.docusign_status }}</span>{% endif %}
+          <button type="button" class="btn-abrir" data-abrir="{{ e.id }}" data-nome="{{ e.arquivo }}">Abrir</button>
+          {% endif %}
+        </div></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="vazio" id="vazio" {% if execucoes %}style="display:none"{% endif %}>Nenhuma comparação ainda. Anexe um arquivo acima.</div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const zona = document.getElementById('zona');
+const entrada = document.getElementById('arquivos');
+let monitorando = [];
+
+['dragenter','dragover'].forEach(ev => zona.addEventListener(ev, e => {
+  e.preventDefault(); zona.classList.add('sobre');
+}));
+['dragleave','drop'].forEach(ev => zona.addEventListener(ev, e => {
+  e.preventDefault(); zona.classList.remove('sobre');
+}));
+zona.addEventListener('drop', e => { entrada.files = e.dataTransfer.files; mostrarSelecionados(); });
+
+function mostrarSelecionados(){
+  const alvo = document.getElementById('selecionados');
+  alvo.innerHTML = Array.from(entrada.files).map(f =>
+    '<div>' + f.name + ' &middot; ' + Math.round(f.size/1024) + ' KB</div>').join('');
+}
+function limpar(){
+  entrada.value=''; mostrarSelecionados();
+  document.getElementById('aviso').textContent='';
+}
+function limparTudo(){
+  limpar();
+  monitorando = [];
+  document.getElementById('corpo').innerHTML = '';
+  document.getElementById('vazio').style.display = 'block';
+}
+function trocarDepartamento(codigo){ location.href = '/?dep=' + codigo; }
+
+async function enviar(forcar){
+  const aviso = document.getElementById('aviso');
+  aviso.textContent = '';
+  if(!entrada.files.length){ aviso.textContent = 'Anexe ao menos um arquivo.'; return; }
+  const modelo = document.getElementById('modelo').value;
+  if(!modelo){ aviso.textContent = 'Nenhum modelo padrão disponível.'; return; }
+
+  const dados = new FormData();
+  dados.append('departamento', document.getElementById('departamento').value);
+  dados.append('modelo', modelo);
+  dados.append('fornecedor', document.getElementById('fornecedor').value);
+  if(forcar) dados.append('forcar', '1');
+  for(const f of entrada.files) dados.append('arquivos', f);
+
+  const botao = document.getElementById('btn');
+  botao.disabled = true; botao.textContent = 'Enviando...';
+  try{
+    const r = await fetch('/comparar', {method:'POST', body:dados});
+    const j = await r.json();
+    if(!r.ok){ aviso.textContent = j.erro || 'Falha no envio.'; return; }
+    mostrarDuplicados(j.duplicados || []);
+    const lote = document.getElementById('aviso-lote');
+    if(j.lote){ lote.innerHTML = 'Lote criado com ' + j.ids.length + ' devoluções — <a href="/lote/' + j.lote +
+      '">ver resumo consolidado</a>.'; lote.hidden = false; } else { lote.hidden = true; }
+    if(j.ids.length){
+      document.getElementById('vazio').style.display = 'none';
+      j.ids.forEach(criarLinha);
+      monitorando = monitorando.concat(j.ids);
+    }
+    if(!(j.duplicados || []).length) limpar();
+    acompanhar();
+  }catch(err){ aviso.textContent = 'Erro de conexão: ' + err; }
+  finally{ botao.disabled = false; botao.textContent = 'Comparar'; }
+}
+
+function mostrarDuplicados(lista){
+  const caixa = document.getElementById('duplicados');
+  if(!lista.length){ caixa.hidden = true; return; }
+  caixa.innerHTML = '<b>Já existe resultado idêntico</b> (mesmo modelo, mesma devolução, mesma versão do motor e mesmas regras):' +
+    '<ul>' + lista.map(d => '<li>' + escaparHtml(d.arquivo) + ' — processado em ' + escaparHtml(d.criado_em || '') +
+      ' (' + escaparHtml(d.fornecedor || '') + ')' + (d.status !== 'concluido' ? ' — ainda em processamento' : '') + ' <button type="button" class="secundario pequeno" data-abrir="' +
+      escaparHtml(d.existente) + '" data-nome="' + escaparHtml(d.arquivo) + '">Abrir existente</button></li>').join('') +
+    '</ul><button type="button" class="pequeno" onclick="enviar(true)">Processar mesmo assim</button>';
+  caixa.hidden = false;
+}
+
+function criarLinha(id){
+  const corpo = document.getElementById('corpo');
+  const tr = document.createElement('tr');
+  tr.dataset.id = id;
+  tr.innerHTML = '<td class="arquivo">enviando...</td><td class="arquivo">—</td>' +
+    '<td><span class="selo fila">na fila</span></td><td>—</td>' +
+    '<td class="num">—</td><td class="num">—</td><td class="num">—</td>' +
+    '<td class="crit">—</td><td></td>';
+  corpo.prepend(tr);
+}
+
+const SELOS = {na_fila:['fila','na fila'], processando:['proc','processando'],
+               concluido:['ok','concluído'], erro:['err','erro']};
+
+async function acompanhar(){
+  if(!monitorando.length) return;
+  const r = await fetch('/api/status?ids=' + monitorando.join(','));
+  const itens = await r.json();
+  let pendente = false;
+  itens.forEach(e => {
+    const tr = document.querySelector('tr[data-id="'+e.id+'"]');
+    if(!tr) return;
+    const c = tr.children;
+    const [classe, texto] = SELOS[e.status] || ['fila', e.status];
+    c[0].textContent = e.arquivo; c[0].title = e.arquivo;
+    c[1].textContent = e.fornecedor || '—';
+    c[2].innerHTML = '<span class="selo '+classe+'">'+texto+'</span>';
+    if(e.status === 'concluido'){
+      const selo = e.selo_risco === 'Médio' ? 'Medio' : e.selo_risco;
+      c[3].innerHTML = e.selo_risco ? '<span class="selo risco-'+selo+'">'+escaparHtml(e.selo_risco)+' · '+e.risco_geral+'</span>' : '—';
+      c[4].textContent = e.preenchidos; c[5].textContent = (e.alterados||0)+(e.incluidos||0)+(e.removidos||0);
+      c[6].textContent = e.pendentes; c[7].textContent = e.criticos;
+      if(e.criticos) c[7].classList.add('tem-critico');
+      c[8].innerHTML = '<div class="links-acao">' + (RESUMO_IA ? '<button type="button" class="link-ia" data-resumo-ia="' + e.id +
+        '" aria-expanded="false" title="Resumo curto feito pela IA a partir do resultado">✦ Resumo com IA</button>' : '') +
+        '<button type="button" class="btn-abrir" data-abrir="'+e.id+'" data-nome="'+escaparHtml(e.arquivo)+'">Abrir</button></div>';
+    } else if(e.status === 'erro'){
+      c[1].textContent = e.erro || 'falha';
+    } else { pendente = true; }
+  });
+  if(pendente) setTimeout(acompanhar, 1200);
+  else monitorando = [];
+}
+
+['corpo', 'duplicados'].forEach(function(alvo){
+  document.getElementById(alvo).addEventListener('click', function(ev){
+    const r = ev.target.closest('[data-resumo-ia]');
+    if(r){ alternarResumoIA(r); return; }
+    const b = ev.target.closest('[data-abrir]'); if(!b) return;
+    location.href = '/resultado/' + encodeURIComponent(b.getAttribute('data-abrir'));
+  });
+});
+
+const RESUMO_IA = {{ 'true' if ia_recursos.resumo_rapido else 'false' }};
+
+/* Resumo com IA: linha extra abaixo do resultado. Fica guardado no servidor:
+   abrir de novo não gasta tokens; "refazer" gera outro. */
+function alternarResumoIA(botao, refazer){
+  const id = botao.getAttribute('data-resumo-ia');
+  const tr = botao.closest('tr');
+  let extra = tr.nextElementSibling;
+  if(extra && extra.classList.contains('linha-resumo-ia') && !refazer){
+    extra.remove(); botao.setAttribute('aria-expanded','false'); return;
+  }
+  if(!extra || !extra.classList.contains('linha-resumo-ia')){
+    extra = document.createElement('tr'); extra.className = 'linha-resumo-ia';
+    extra.innerHTML = '<td colspan="9"></td>'; tr.after(extra);
+  }
+  botao.setAttribute('aria-expanded','true');
+  const celula = extra.firstElementChild;
+  celula.innerHTML = '<div class="resumo-ia"><span class="dica">Gerando resumo…</span></div>';
+  fetch('/resultado/' + id + '/ia/resumo', {method:'POST', credentials:'same-origin',
+    headers:{'Content-Type':'application/json','X-Requested-With':'fetch'}, body: JSON.stringify({refazer: !!refazer})})
+    .then(r => r.json().catch(() => ({ok:false, erro:'Falha (' + r.status + ').'})))
+    .then(j => {
+      if(!j.ok){ celula.innerHTML = '<div class="resumo-ia erro">' + escaparHtml(j.erro || 'Falha.') + '</div>'; return; }
+      const r = j.resumo;
+      celula.innerHTML = '<div class="resumo-ia"><div class="resumo-ia-cab"><b>✦ Resumo com IA</b>' +
+        '<span class="marca-ia">gerado por IA — revisar</span><span class="dica">' + escaparHtml(r.gerado_em || '') +
+        (j.cache ? ' · guardado, sem custo' : '') + '</span>' +
+        '<button type="button" class="link-ia" data-refazer-ia="' + escaparHtml(id) + '">refazer</button>' +
+        '<button type="button" class="link-ia" data-abrir="' + escaparHtml(id) + '">abrir resultado →</button></div>' +
+        (r.texto ? '<p>' + escaparHtml(r.texto) + '</p>' : '') +
+        '<ul>' + (r.bullets || []).map(b => '<li>' + escaparHtml(b) + '</li>').join('') + '</ul></div>';
+    })
+    .catch(err => { celula.innerHTML = '<div class="resumo-ia erro">Falha de conexão: ' + escaparHtml(String(err)) + '</div>'; });
+}
+document.getElementById('corpo').addEventListener('click', function(ev){
+  const b = ev.target.closest('[data-refazer-ia]'); if(!b) return;
+  const botao = document.querySelector('[data-resumo-ia="' + b.getAttribute('data-refazer-ia') + '"]');
+  if(botao && confirm('Gerar um novo resumo gasta tokens de novo. Continuar?')) alternarResumoIA(botao, true);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,25 @@
+COMPARADOR DE CONTRATOS
+
+COMO ABRIR
+Clique duas vezes no atalho "Comparador de Contratos" na Área de Trabalho
+(ou no Menu Iniciar). O sistema abre numa janela própria em alguns segundos.
+Tudo roda neste computador: nenhum contrato é enviado para fora.
+
+PRIMEIRO USO
+1. Cadastre um departamento (ex.: código JUR, nome Jurídico) e clique em
+   "Salvar departamentos".
+2. Em "Modelos", envie o contrato-modelo padrão (.docx, .pdf ou .txt).
+3. Em "Comparar", anexe a versão devolvida pela outra parte e clique em
+   "Comparar". Clique em "Abrir" para ver o resultado.
+
+ONDE FICAM OS ARQUIVOS
+Menu Iniciar > Comparador de Contratos > "Pasta de dados".
+Modelos, contratos enviados e resultados (PDF, Excel, parecer) ficam lá e
+são mantidos mesmo se o programa for desinstalado ou reinstalado.
+
+FECHAR
+Basta fechar a janela. O programa se encerra sozinho alguns minutos depois.
+
+PROBLEMAS
+Se algo der errado, anote o que estava fazendo e envie o arquivo mais recente
+da pasta  %LOCALAPPDATA%\Comparador de Contratos\logs  para o suporte.

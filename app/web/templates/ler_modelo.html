@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<h1>{{ arquivo }}</h1>
+<p class="legenda">Modelo padrão de {{ nome_dep }} — leitura dentro do sistema.</p>
+
+<div class="acoes" style="margin:0 0 16px">
+  <a href="{{ url_for('pagina_modelos', dep=departamento) }}"><button class="secundario">Voltar</button></a>
+  <a href="/modelos/arquivo/{{ departamento }}/{{ arquivo }}?baixar=1"><button class="secundario">Baixar original</button></a>
+</div>
+
+{% if observacao %}
+<div class="cartao"><h2>Observações</h2><p style="margin:0">{{ observacao }}</p></div>
+{% endif %}
+
+{% if erro %}
+<div class="alerta">Não foi possível ler este arquivo: {{ erro }}</div>
+{% elif extensao == 'pdf' %}
+<iframe src="/modelos/arquivo/{{ departamento }}/{{ arquivo }}" style="width:100%;height:80vh;border:1px solid var(--borda);border-radius:12px;background:var(--branco)"></iframe>
+{% else %}
+<div class="leitura">
+  {% for p in paragrafos %}
+  <p class="{{ 'titulo-clausula' if p.upper().startswith('CLÁUSULA') or p.upper().startswith('CLAUSULA') or p.upper().startswith('ANEXO') }}">{{ p }}</p>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

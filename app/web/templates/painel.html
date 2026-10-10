@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block titulo %}Painel · {{ ident.nome_produto }}{% endblock %}
+{% macro barras(itens, sufixo='', vazio='Sem dados no período.') %}
+  {% set maior = (itens | map(attribute=1) | max) if itens else 0 %}
+  {% if not itens or not maior %}<p class="dica">{{ vazio }}</p>{% else %}
+  <div class="barras" role="table">
+    {% for rotulo, valor in itens %}
+    <div class="barra-linha" role="row" title="{{ rotulo }}: {{ valor }}{{ sufixo }}">
+      <span class="barra-rotulo" role="cell">{{ rotulo }}</span>
+      <span class="barra-trilho" role="cell" aria-hidden="true"><i style="width:{{ (100 * valor / maior) | round(1) }}%"></i></span>
+      <span class="barra-valor" role="cell">{{ valor }}{{ sufixo }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endmacro %}
+{% block conteudo %}
+<h1>Painel</h1>
+<p class="legenda">Indicadores e análises das comparações de {{ nome_dep }}. A lista detalhada fica no <a href="{{ url_for('pagina_historico', **request.args) }}">Histórico</a>.</p>
+
+<form class="cartao" method="get" action="{{ url_for('pagina_painel') }}">
+  <div class="linha">
+    <div class="campo curto"><label for="f-dep">Departamento</label>
+      <select id="f-dep" name="dep">
+        <option value="*" {{ 'selected' if dep_filtro == '*' }}>Todos</option>
+        {% for d in departamentos %}<option value="{{ d.codigo }}" {{ 'selected' if dep_filtro == d.codigo }}>{{ d.nome }}{{ ' (excluído)' if d.excluido else ('' if d.ativo else ' (inativo)') }}</option>{% endfor %}
+      </select></div>
+    <div class="campo curto"><label for="f-de">De</label><input type="date" id="f-de" name="de" value="{{ filtros.de }}"></div>
+    <div class="campo curto"><label for="f-ate">Até</label><input type="date" id="f-ate" name="ate" value="{{ filtros.ate }}"></div>
+    <div class="campo curto"><label for="f-forn">Fornecedor</label><input type="text" id="f-forn" name="fornecedor" value="{{ filtros.fornecedor }}" placeholder="parte do nome"></div>
+    <button type="submit">Filtrar</button>
+    <a href="{{ url_for('pagina_painel', dep=dep_filtro) }}"><button type="button" class="secundario">Limpar</button></a>
+  </div>
+</form>
+
+<section class="indicadores" aria-label="Indicadores do período">
+  <div class="indicador"><span class="n">{{ painel.total }}</span><span class="r">comparações</span></div>
+  <div class="indicador"><span class="n">{{ painel.risco_medio if painel.risco_medio is not none else '—' }}</span><span class="r">risco médio (0–100)</span></div>
+  <div class="indicador"><span class="n">{{ painel.incompletas }}</span><span class="r">devoluções incompletas</span></div>
+  <div class="indicador"><span class="n">{{ painel.fora_politica }}</span><span class="r">fora da política</span></div>
+  <div class="indicador"><span class="n">{{ painel.revisadas }}</span><span class="r">aprovadas ou devolvidas</span></div>
+  <div class="indicador"><span class="n">{{ (painel.tempo_medio_dias | string).replace('.', ',') ~ ' d' if painel.tempo_medio_dias is not none else '—' }}</span><span class="r">tempo médio até a revisão</span></div>
+</section>
+
+<section class="graficos">
+  <div class="cartao"><h2>Cláusulas mais alteradas</h2>{{ barras(painel.clausulas, '', 'Nenhuma alteração (só preenchimentos) no período.') }}</div>
+  <div class="cartao"><h2>Risco médio por fornecedor</h2>{{ barras(painel.risco_fornecedor_barras, '', 'Sem comparações concluídas no período.') }}</div>
+  <div class="cartao"><h2>Tempo até a revisão</h2>{{ barras(painel.tempo_faixas, '', 'Nenhuma revisão concluída no período.') }}</div>
+</section>
+{% endblock %}

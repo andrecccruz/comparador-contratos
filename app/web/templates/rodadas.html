@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block titulo %}Rodadas · {{ execucao.fornecedor }}{% endblock %}
+{% macro lista_oc(itens, antes=False) %}
+  {% if itens %}<ul>{% for o in itens %}
+    <li><b>{{ nomes_tipo[o.tipo] }}</b> · {{ o.clausula }} — {{ (o.texto_devolucao or o.texto_modelo)[:160] }}{% if (o.texto_devolucao or o.texto_modelo)|length > 160 %}…{% endif %}
+      {% if antes and o.antes %}<br><span class="dica">antes: {{ o.antes[:140] }}</span>{% endif %}</li>
+  {% endfor %}</ul>{% else %}<p class="dica">nenhuma</p>{% endif %}
+{% endmacro %}
+{% block conteudo %}
+<h1>Rodadas de negociação</h1>
+<p class="legenda">{{ execucao.fornecedor }}{% if execucao.cnpj %} · {{ execucao.cnpj }}{% endif %} · modelo {{ execucao.modelo }} · {{ grupo|length }} rodada(s)</p>
+
+<div class="cartao">
+  <h2>Linha do tempo</h2>
+  <ol class="linha-tempo">
+    {% for e in grupo %}
+    <li class="{{ 'atual' if e.id == execucao.id }}">
+      <b>v{{ e.rodada }}</b> · {{ e.criado_em }} · {{ e.arquivo }}
+      {% if e.selo_risco %}<span class="selo risco-{{ 'Medio' if e.selo_risco == 'Médio' else e.selo_risco }}">{{ e.selo_risco }} · {{ e.risco_geral }}</span>{% endif %}
+      <span class="etiqueta">{{ {'pendente':'pendente','em_revisao':'em revisão','aprovado':'aprovado','devolvido':'devolvido'}[e.status_revisao or 'pendente'] }}</span>
+      <div class="dica">{{ e.alterados or 0 }} alteradas · {{ e.incluidos or 0 }} incluídas · {{ e.removidos or 0 }} removidas · {{ e.pendentes or 0 }} pendentes{% if e.responsavel %} · responsável: {{ e.responsavel }}{% endif %}</div>
+      <div class="links-acao" style="justify-content:flex-start;margin-top:4px">
+        <button type="button" class="btn-abrir" data-abrir="{{ e.id }}" data-nome="v{{ e.rodada }} — {{ e.arquivo }}">Abrir comparativo</button>
+        {% if not loop.first %}<button type="button" class="btn-abrir" data-rodada="{{ e.id }}">Comparar com v{{ e.rodada - 1 }} (texto a texto)</button>{% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+</div>
+
+{% for c in comparacoes | reverse %}
+<div class="cartao">
+  <h2>v{{ c.anterior.rodada }} → v{{ c.atual.rodada }}</h2>
+  {% if not c.classificacao %}
+  <p class="dica">Uma das rodadas foi gerada pela versão 1.1 (sem resultado estruturado). Reprocesse para comparar.</p>
+  {% else %}{% set k = c.classificacao.contagem %}
+  <p class="dica">O fornecedor aceitou {{ k.aceitas }}, manteve {{ k.mantidas }}, mudou de novo {{ k.mudou_de_novo }} e trouxe {{ k.novas }} mudança(s) nova(s){% if k.resolvidas %}; {{ k.resolvidas }} campo(s) pendente(s) foram preenchidos{% endif %}.</p>
+  <div class="grupos-rodada">
+    <div class="grupo"><h3>Aceitas (voltou ao modelo) · {{ k.aceitas }}</h3>{{ lista_oc(c.classificacao.aceitas) }}</div>
+    <div class="grupo"><h3>Mantidas · {{ k.mantidas }}</h3>{{ lista_oc(c.classificacao.mantidas) }}</div>
+    <div class="grupo"><h3>Mudou de novo · {{ k.mudou_de_novo }}</h3>{{ lista_oc(c.classificacao.mudou_de_novo, True) }}</div>
+    <div class="grupo"><h3>Novas · {{ k.novas }}</h3>{{ lista_oc(c.classificacao.novas) }}</div>
+    {% if k.resolvidas %}<div class="grupo"><h3>Pendências resolvidas · {{ k.resolvidas }}</h3>{{ lista_oc(c.classificacao.resolvidas) }}</div>{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-abrir]');
+  if (b) {
+    location.href = '/resultado/' + encodeURIComponent(b.getAttribute('data-abrir'));
+    return;
+  }
+  var r = e.target.closest('[data-rodada]');
+  if (r) {
+    var idr = r.getAttribute('data-rodada');
+    r.disabled = true; r.textContent = 'Comparando…';
+    _postJSON('/resultado/' + idr + '/rodada-anterior').then(function (j) {
+      r.disabled = false; r.textContent = 'Comparar com a anterior (texto a texto)';
+      if (!j.ok) { alert(j.erro || 'Falha.'); return; }
+      abrirPainel({titulo: 'Rodada anterior × esta rodada (' + j.total + ' diferenças)', visualizarUrl: j.url, downloads: []});
+    });
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block titulo %}Lote · {{ ident.nome_produto }}{% endblock %}
+{% block conteudo %}
+<h1>Comparação em lote</h1>
+<p class="legenda">{{ lote.itens|length }} devolução(ões) contra o modelo {{ lote.modelo }} · {{ nome_dep }}</p>
+
+<section class="indicadores">
+  <div class="indicador"><span class="n" id="l-concluidas">{{ lote.concluidas }}</span><span class="r">concluídas</span></div>
+  <div class="indicador"><span class="n">{{ lote.pendentes_fila }}</span><span class="r">na fila</span></div>
+  <div class="indicador"><span class="n">{{ lote.risco_medio if lote.risco_medio is not none else '—' }}</span><span class="r">risco médio</span></div>
+  <div class="indicador"><span class="n">{{ lote.risco_max if lote.risco_max is not none else '—' }}</span><span class="r">maior risco</span></div>
+  <div class="indicador"><span class="n">{{ lote.totais.get('alterados', 0) + lote.totais.get('incluidos', 0) + lote.totais.get('removidos', 0) }}</span><span class="r">mudanças no total</span></div>
+  <div class="indicador"><span class="n">{{ lote.totais.get('pendentes', 0) }}</span><span class="r">campos pendentes</span></div>
+</section>
+
+<div class="cartao">
+  <div class="acoes" style="margin-top:0"><a href="{{ url_for('xlsx_lote', lote_id=lote.id) }}"><button type="button" class="secundario">Resumo consolidado (.xlsx)</button></a></div>
+  <div class="tabela-rolavel"><table style="margin-top:10px">
+    <thead><tr><th>Arquivo</th><th>Fornecedor</th><th>Status</th><th>Risco</th><th class="num">Alt.</th><th class="num">Inc.</th><th class="num">Rem.</th><th class="num">Pend.</th><th class="num">Fora pol.</th><th></th></tr></thead>
+    <tbody>
+    {% for e in lote.itens %}
+      <tr>
+        <td class="arquivo" title="{{ e.arquivo }}">{{ e.arquivo }}</td>
+        <td class="arquivo">{{ e.fornecedor }}</td>
+        <td><span class="selo {{ 'ok' if e.status == 'concluido' else 'err' if e.status == 'erro' else 'proc' }}">{{ e.status }}</span></td>
+        <td>{% if e.selo_risco %}<span class="selo risco-{{ 'Medio' if e.selo_risco == 'Médio' else e.selo_risco }}">{{ e.selo_risco }} · {{ e.risco_geral }}</span>{% endif %}</td>
+        <td class="num">{{ e.alterados or 0 }}</td><td class="num">{{ e.incluidos or 0 }}</td><td class="num">{{ e.removidos or 0 }}</td>
+        <td class="num">{{ e.pendentes or 0 }}</td><td class="num {{ 'tem-critico' if e.fora_da_politica }}">{{ e.fora_da_politica or 0 }}</td>
+        <td><div class="links-acao">{% if e.status == 'concluido' %}<button type="button" class="btn-abrir" data-abrir="{{ e.id }}" data-nome="{{ e.arquivo }}">Abrir</button>{% endif %}</div></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+<div class="cartao">
+  <h2>Cláusulas mais alteradas no lote</h2>
+  {% if lote.clausulas %}
+  <div class="barras">
+    {% set maior = lote.clausulas[0][1] %}
+    {% for c, n in lote.clausulas %}
+    <div class="barra-linha" title="{{ c }}: {{ n }}"><span class="barra-rotulo">{{ c }}</span>
+      <span class="barra-trilho" aria-hidden="true"><i style="width:{{ (100 * n / maior)|round(1) }}%"></i></span><span class="barra-valor">{{ n }}</span></div>
+    {% endfor %}
+  </div>
+  {% else %}<p class="dica">Nenhuma alteração (só preenchimentos) nas devoluções concluídas.</p>{% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-abrir]'); if (!b) return;
+  location.href = '/resultado/' + encodeURIComponent(b.getAttribute('data-abrir'));
+});
+{% if lote.pendentes_fila %}
+setTimeout(function () { location.reload(); }, 2500);
+{% endif %}
+</script>
+{% endblock %}

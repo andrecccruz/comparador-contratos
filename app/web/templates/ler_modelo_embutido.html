@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt-br" data-tema="{{ tema }}">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}">
+<style>{{ tokens_css | safe }}</style>
+<style>
+  body{background:var(--branco);padding:22px 26px}
+  .leitura{border:0;padding:0;max-width:none}
+</style>
+</head>
+<body>
+{% if erro %}
+  <div class="alerta">Não foi possível ler este arquivo: {{ erro }}</div>
+{% elif extensao == 'pdf' %}
+  <p class="legenda">PDF — use o botão de download para abrir no leitor do seu computador.</p>
+{% else %}
+  <div class="leitura">
+    {% for p in paragrafos %}
+    <p class="{{ 'titulo-clausula' if p.upper().startswith('CLÁUSULA') or p.upper().startswith('CLAUSULA') or p.upper().startswith('ANEXO') }}">{{ p }}</p>
+    {% endfor %}
+  </div>
+{% endif %}
+</body>
+</html>
